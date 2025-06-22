@@ -1,0 +1,49 @@
+from gtts import gTTS
+import torch
+import librosa
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Tokenizer
+
+# === STEP 1: GENERATE AUDIO FROM TEXT ===
+text = "Welcome to your speech recognition system demo. This audio will be transcribed by the Python script using a pre-trained Wav2Vec2 model."
+audio_file = "sample.wav"
+
+print("[INFO] Generating audio...")
+tts = gTTS(text)
+tts.save(audio_file)
+print(f"[INFO] Audio generated and saved as: {audio_file}")
+
+# === STEP 2: LOAD AUDIO FILE ===
+print("[INFO] Loading audio...")
+try:
+    audio_input, sample_rate = librosa.load(audio_file, sr=16000)
+except FileNotFoundError:
+    print(f"[ERROR] File '{audio_file}' not found. Make sure the file was created.")
+    exit()
+
+# === STEP 3: LOAD MODEL & TOKENIZER ===
+print("[INFO] Loading Wav2Vec2.0 model...")
+model_name = "facebook/wav2vec2-base-960h"
+tokenizer = Wav2Vec2Tokenizer.from_pretrained(model_name)
+model = Wav2Vec2ForCTC.from_pretrained(model_name)
+
+# === STEP 4: TOKENIZE AUDIO ===
+print("[INFO] Preparing audio input...")
+input_values = tokenizer(audio_input, return_tensors="pt", padding="longest").input_values
+
+# === STEP 5: RUN INFERENCE ===
+print("[INFO] Transcribing audio...")
+with torch.no_grad():
+    logits = model(input_values).logits
+
+# === STEP 6: DECODE TO TEXT ===
+predicted_ids = torch.argmax(logits, dim=-1)
+transcription = tokenizer.decode(predicted_ids[0])
+
+# === STEP 7: OUTPUT ===
+print("\n✅ Transcription Result:")
+print(transcription)
+
+# === STEP 8: (Optional) SAVE TO TEXT FILE ===
+with open("transcription_output.txt", "w") as f:
+    f.write(transcription)
+print("[INFO] Transcription saved to: transcription_output.txt")
